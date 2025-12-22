@@ -1,0 +1,179 @@
+#code
+import pygame as pg
+from copy import deepcopy
+from numpy import array
+from random import randrange
+import json
+pg.init()
+patterns = json.load(open("save.json"))
+l = locals()
+class OneToOne:
+    def __init__(self, x=None, y=None, decodestring=False):
+        if not decodestring:
+            self.is_live = False
+            self.x = x
+            self.y = y
+        else:
+            parameters = decodestring.replace("live@", "").replace("coors@", "").split("-")
+            self.is_live = True if parameters[0] == "True" else False
+            coors = parameters[1].split(",")
+            self.x = int(coors[0])
+            self.y = int(coors[1])
+
+
+
+    def replace_live(self):
+        self.is_live = not self.is_live
+
+    def not_live(self):
+        self.is_live = False
+
+    def live(self):
+        self.is_live = True
+
+    def encode(self):
+        return f"live@{self.is_live}-coors@{self.x},{self.y}"
+screen = pg.display.set_mode((500,500))
+field = array([[OneToOne(x*5,y*5) for x in range(100)] for y in range(100)])
+cur = [0,0]
+cur_oneone = field[*cur]
+print(cur_oneone)
+field_copy = deepcopy(field)
+def check():
+    #update
+    g = globals()
+    filed_copy = deepcopy(g["field"])
+
+    for x in range(100):
+        for y in range(100):
+            twos = 0
+            for xr in range(x-1,x+2):
+                for yr in range(y-1,y+2):
+                    if (yr != y or xr != x) and xr >= 0 and yr >= 0 and xr <= 99 and yr <= 99 and filed_copy[xr,yr].is_live:
+                        twos += 1
+            if not twos == 2 and not twos == 3:
+                g["field"][x,y].not_live()
+            if twos == 3:
+                g["field"][x,y].live()
+
+def draw():
+    #draw
+    g = globals()
+    g["screen"].fill("black")
+    for i in g["field"]:
+        for j in i:
+            pic = pg.Surface((5,5))
+            if j.is_live:
+                pic.fill((255,255,255,255))
+
+            g["screen"].blit(pic, (j.x, j.y))
+
+            if j == g["cur_oneone"]:
+                pic2 = pg.Surface((5,5), pg.SRCALPHA)
+                pic2.fill((80,255,80,168))
+                g["screen"].blit(pic2, (j.x, j.y))
+
+    for i in range(101):
+        pg.draw.line(g["screen"],[2, 7, 66],(i * 5,0),(i * 5, 500))
+        pg.draw.line(g["screen"],[2,7,66],(0,i*5),(500,i*5))
+    pg.display.flip()
+
+
+
+draw()
+pg.display.flip()
+while True:
+    #event
+    for event in pg.event.get():
+        if event.type == pg.QUIT:
+            with open("save.json", "w") as f:
+                json.dump(patterns,f, ensure_ascii=True)
+            quit()
+        elif event.type == pg.KEYDOWN:
+            if event.key == pg.K_s:
+                check()
+                draw()
+            elif event.key == pg.K_c:
+                field = array([[OneToOne(x * 5, y * 5) for x in range(100)] for y in range(100)])
+                draw()
+            elif event.key == pg.K_i:
+                pattern = input("паттерн: ")
+                obj = []
+                for i in field:
+                    obj2 = []
+                    for j in i:
+                        obj2.append(j.encode())
+                    obj.append(obj2)
+                patterns[pattern] = obj
+            elif event.key == pg.K_l:
+                encode_field = patterns[input("паттерн: ")]
+                field = []
+                for i in encode_field:
+                    string = []
+                    for j in i:
+                        string.append(OneToOne(decodestring=j))
+                    field.append(string)
+                field = array(field)
+                draw()
+            elif event.key == pg.K_d:
+                del patterns[input("паттерн: ")]
+
+            elif event.key == pg.K_RIGHT:
+                cur[1] += 1
+                try:
+                    cur_oneone = field[*cur]
+                except IndexError:
+                    cur[0] = 0
+                    cur_oneone = field[*cur]
+                draw()
+            elif event.key == pg.K_LEFT:
+                cur[1] += -1
+                try:
+                    cur_oneone = field[*cur]
+                except IndexError:
+                    cur[1] = 99
+                    cur_oneone = field[*cur]
+                draw()
+            elif event.key == pg.K_DOWN:
+                cur[0] += 1
+                try:
+                    cur_oneone = field[*cur]
+                except IndexError:
+                    cur[0] = 0
+                    cur_oneone = field[*cur]
+                draw()
+            elif event.key == pg.K_UP:
+                cur[0] += -1
+                try:
+                    cur_oneone = field[*cur]
+                except IndexError:
+                    cur[0] = 49
+                    cur_oneone = field[*cur]
+                draw()
+
+            elif event.key == pg.K_LSHIFT:
+                cur_oneone.replace_live()
+                draw()
+
+        elif event.type == pg.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                for i in range(100):
+                    for j in range(100):
+                        if pg.Rect(i*5,j*5,5,5).collidepoint(event.pos):
+                            field[j,i].replace_live()
+
+            elif event.button == 3:
+                for i in range(100):
+                    for j in range(100):
+                        if pg.Rect(i*5,j*5,5,5).collidepoint(event.pos):
+                            cur = [j, i]
+                            cur_oneone = field[*cur]
+            draw()
+
+
+    keys = pg.key.get_pressed()
+    if keys[pg.K_r]:
+        check()
+        draw()
+    #delay
+    pg.time.delay(50 if not keys[pg.K_a] else 20)
